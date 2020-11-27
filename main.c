@@ -167,6 +167,7 @@ static int guess()
     if (file_size < HEADER_SIZE)
     {
         (void)fprintf(stdout, "File size is less than header, encrypting file...\n");
+        fclose(in_file);
         return encrypt();  // file size less than header, most probably unencrypted file
     }
 
@@ -174,6 +175,8 @@ static int guess()
 
     uint32_t magic;
     fread(&magic, 4, 1, in_file);
+    fclose(in_file);
+
     if (magic == MAGIC_NUMBER)
     {
         (void)fprintf(stdout, "Found magic number - decrypting file...\n");
