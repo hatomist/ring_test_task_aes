@@ -4,12 +4,13 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdint.h>
 
 
 /* Header format
  * ================================================================================
- * | Magic number (8 bytes) | File size (8 bytes, decimal) | CRC32 (8 bytes, hex) |
- * |        0x00-0x07       |         0x08 - 0x0F          |      0x10 - 0x17     |
+ * | Magic number (4 bytes) | File size (8 bytes, decimal) | CRC32 (8 bytes, hex) |
+ * |        0x00-0x03       |         0x04 - 0x0B          |      0x0C - 0x13     |
  * ================================================================================
  */
 
