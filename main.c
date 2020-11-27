@@ -155,7 +155,35 @@ static int encrypt()
  */
 static int guess()
 {
-    return 0;
+    (void)fprintf(stdout, "WARNING: no command supplied. Trying to guess what you mean...\n");
+    errno = 0;
+    FILE *in_file = fopen(config.in_file_path, "rb");
+    if (in_file == NULL)
+        return file_parse_errno(config.in_file_path);
+
+    fseek(in_file, 0, SEEK_END);
+    size_t file_size = ftell(in_file);
+
+    if (file_size < HEADER_SIZE)
+    {
+        (void)fprintf(stdout, "File size is less than header, encrypting file...\n");
+        return encrypt();  // file size less than header, most probably unencrypted file
+    }
+
+    fseek(in_file, 0, SEEK_SET);
+
+    uint32_t magic;
+    fread(&magic, 4, 1, in_file);
+    if (magic == MAGIC_NUMBER)
+    {
+        (void)fprintf(stdout, "Found magic number - decrypting file...\n");
+        return decrypt();
+    }
+    else
+    {
+        (void)fprintf(stdout, "Magic number not found - encrypting file...\n");
+        return encrypt();
+    }
 }
 
 int main(int argc, char* argv[]) {
