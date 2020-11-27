@@ -88,14 +88,14 @@ static int parseargs(int argc, char *argv[])
     {
         (void)fprintf(stderr,"Error: not enough positional arguments\n");
         help();
-        cleanup(1);
+        return(1);
     }
 
     if (argc - optind > MAX_POS_ARG_NUM)
     {
         (void)fprintf(stderr,"Error: too many positional arguments\n");
         help();
-        cleanup(1);
+        return(1);
     }
 
     config.in_file_path = argv[optind++];
