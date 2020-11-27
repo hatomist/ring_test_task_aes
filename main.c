@@ -73,7 +73,7 @@ static int parseargs(int argc, char *argv[])
 {
     int opt = 0;
     int ret;
-    while ((opt = getopt(argc, argv, "edh")) != -1)
+    while ((opt = getopt(argc, argv, "+edh")) != -1)
     {
         if (opt == '?') {
             // unknown option, getopt printed an error
@@ -83,6 +83,24 @@ static int parseargs(int argc, char *argv[])
         if (ret)
             return ret;
     }
+
+    if (argc - optind < MIN_POS_ARG_NUM)
+    {
+        (void)fprintf(stderr,"Error: not enough positional arguments\n");
+        help();
+        cleanup(1);
+    }
+
+    if (argc - optind > MAX_POS_ARG_NUM)
+    {
+        (void)fprintf(stderr,"Error: too many positional arguments\n");
+        help();
+        cleanup(1);
+    }
+
+    config.in_file_path = argv[optind++];
+    config.password = argv[optind++];
+    config.out_file_path = optind < argc ? argv[optind++] : NULL;  // optional arg, set only if specified
 
     return 0;
 }
