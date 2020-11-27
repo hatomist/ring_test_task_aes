@@ -105,6 +105,30 @@ static int parseargs(int argc, char *argv[])
     return 0;
 }
 
+/** Show information about file access error
+ * @param filename file name
+ * @return errno
+ */
+static int file_parse_errno(char *filename)
+{
+    switch (errno)
+    {
+        case EISDIR:
+            (void)fprintf(stderr, "\"%s\" is a directory!\n", filename);
+            return errno;
+        case ENOENT:
+        case EFAULT:
+            (void)fprintf(stderr, "Bad file path entered: \"%s\"\n", filename);
+            return errno;
+        case EACCES:
+            (void)fprintf(stderr, "Cannot open the file \"%s\": insufficient permissions\n", filename);
+            return errno;
+        default:
+            (void)fprintf(stderr, "Cannot open the file \"%s\": unknown error %d\n", filename, errno);
+            return errno;
+    }
+}
+
 int main(int argc, char* argv[]) {
     program_name = argv[0];
     int ret = 0;
