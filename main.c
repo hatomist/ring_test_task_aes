@@ -138,6 +138,25 @@ static int file_parse_errno(char *filename)
     }
 }
 
+static int decrypt()
+{
+
+    return 0;
+}
+
+static int encrypt()
+{
+    return 0;
+}
+
+/** Try to guess by magic number what to do with given file (encrypt or decrypt)
+ * @return 0 on success, errno value on error
+ */
+static int guess()
+{
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     program_name = argv[0];
     int ret = 0;
@@ -145,6 +164,15 @@ int main(int argc, char* argv[]) {
     ret = parseargs(argc, argv);
     if (ret != 0) {
         cleanup(ret);
+    }
+
+    switch (config.mode) {
+        case 'd':
+            ret = decrypt(); break;
+        case 'e':
+            ret = encrypt(); break;
+        case 'g':
+            ret = guess(); break;
     }
 
     cleanup(ret);
