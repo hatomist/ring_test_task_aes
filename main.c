@@ -9,8 +9,8 @@
 
 /* Header format
  * ================================================================================
- * | Magic number (4 bytes) | File size (8 bytes, decimal) | CRC32 (8 bytes, hex) |
- * |        0x00-0x03       |         0x04 - 0x0B          |      0x0C - 0x13     |
+ * | Magic number (4 bytes) | File size (8 bytes, decimal) | CRC32 (4 bytes, hex) |
+ * |        0x00-0x03       |         0x04 - 0x0B          |      0x0C - 0x0F     |
  * ================================================================================
  */
 
