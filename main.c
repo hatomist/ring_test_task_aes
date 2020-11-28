@@ -296,7 +296,7 @@ static int encrypt()
 
     size_t read_bytes;
     while ((read_bytes = fread(buf, 1, FILE_BUF_SIZE, in_file)) != 0) {
-        size_t padding = 16 - (read_bytes % 16);
+        size_t padding = (16 - (read_bytes % 16)) % 16;
         memset(buf + read_bytes, 0, padding);  // Block size must be multiple of 16 for AES256
         gcry_md_write(gcry_md_hd, buf, read_bytes + padding);
         gcry_cipher_encrypt(gcry_cipher_hd, buf, read_bytes + padding, NULL, 0);
@@ -311,7 +311,7 @@ static int encrypt()
     uint8_t header[16];
     fseek(out_file, 0, SEEK_SET);
     fread(header, 16, 1, out_file);
-    (void)fprintf(stdout, "Successfully encrypted file!\nFile header: %08X | %016lX | %08X",
+    (void)fprintf(stdout, "Successfully encrypted file!\nFile header: %08X | %016lX | %08X\n",
                   ntohl(*((uint32_t *)&header[0])), ntohll(*((uint64_t *)&header[4])),
                   ntohl(*((uint32_t *)&header[12])));
 
