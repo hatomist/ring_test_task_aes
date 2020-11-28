@@ -6,6 +6,7 @@
 #define MAX_POS_ARG_NUM 3  // file path, password and out file path
 #define MIN_POS_ARG_NUM 2  // file path and password
 #define HEADER_SIZE 16
+#define FILE_BUF_SIZE 4096
 
 const uint32_t MAGIC_NUMBER = 0xBABABABA;
 

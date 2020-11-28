@@ -17,7 +17,7 @@
 
 static char* program_name;
 
-static const char* help_string = "Usage: %s [-deh] file password [out]\n"
+static const char* help_string = "Usage: %s [-deh] file key [out]\n"
                                  "Encrypt or decrypt file using AES-256 encryption algorithm.\n"
                                  "\n"
                                  "-d              Decrypt given file \n"
@@ -30,11 +30,12 @@ static const char* help_string = "Usage: %s [-deh] file password [out]\n"
 
 struct {
     char mode;              // decrypt ('D') or encrypt ('E'), defaults to guess by magic number
-    char* password;         // encryption/decryption password
+    char* key_string;       // encryption/decryption key string
+    uint8_t key[32];        // encryption/decryption key
     char* in_file_path;     // input file path
     char* out_file_path;    // output file path, defaults to "in_file_path.aes" if in encryption mode and to
                             // "in_file_path" without ".aes" part if possible, otherwise "in_file_path.decrypted"
-} config = {'g', NULL, NULL, NULL};
+} config = {'g', NULL, {}, NULL, NULL};
 
 
 /** Print help */
@@ -98,18 +99,44 @@ static int parseargs(int argc, char *argv[])
     {
         (void)fprintf(stderr,"Error: not enough positional arguments\n");
         help();
-        return(1);
+        return 1;
     }
 
     if (argc - optind > MAX_POS_ARG_NUM)
     {
         (void)fprintf(stderr,"Error: too many positional arguments\n");
         help();
-        return(1);
+        return 1;
     }
 
     config.in_file_path = argv[optind++];
-    config.password = argv[optind++];
+    config.key_string = argv[optind++];
+
+    if (strlen(config.key_string) != 64)
+    {
+        (void)fprintf(stderr,"Error: not 256-bit hex-encoded key\n");
+        return 1;
+    }
+
+    // easy way to check if given string is hex-string and will be correctly decoded by sscanf
+    char *s = config.key_string;
+    for (size_t i = 0; i < 64; i++)
+    {
+        if (!(  (s[i] <= '9' && s[i] >= '0') ||
+                (s[i] <= 'f' && s[i] >= 'a') ||
+                (s[i] <= 'F' && s[i] >= 'A')))
+        {
+            (void)fprintf(stderr,"Error: not 256-bit hex-encoded key\n");
+            return 1;
+        }
+    }
+
+    for (size_t i = 0; i < 32; i++)
+    {
+        sscanf(s, "%2hhx", &config.key[i]);
+        s += 2;
+    }
+
     config.out_file_path = optind < argc ? argv[optind++] : NULL;  // optional arg, set only if specified
 
     return 0;
@@ -145,8 +172,76 @@ static int decrypt()
     return 0;
 }
 
+/** Encrypt file via given password and save
+ * @return error code
+ */
 static int encrypt()
 {
+    // automatically set out filename if not specified
+    if (config.out_file_path == NULL)
+    {
+        size_t in_file_path_strlen = strlen(config.in_file_path);
+        config.out_file_path = malloc(in_file_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
+        strcpy(config.out_file_path, config.in_file_path);
+        strcpy(config.out_file_path + in_file_path_strlen, ".aes");
+    }
+
+    // open files and check for errors
+    errno = 0;
+    FILE *in_file = fopen(config.in_file_path, "rb");
+    if (in_file == NULL)
+        return file_parse_errno(config.in_file_path);
+
+    errno = 0;
+    FILE *out_file = fopen(config.out_file_path, "wb+");  // TODO: check and ask if file exists
+    if (out_file == NULL)
+        return file_parse_errno(config.out_file_path);
+
+
+    fwrite(&MAGIC_NUMBER, 4, 1, out_file);
+
+    fseek(in_file, 0, SEEK_END);
+    uint64_t file_size = ftell(in_file);
+    fseek(in_file, 0, SEEK_SET);
+
+    fwrite(&file_size, 8, 1, out_file);
+
+    fseek(out_file, 4, SEEK_CUR);  // skip 4 bytes for CRC32, we'll fill that later
+
+
+    // initialize crc32 and aes256 libgcrypt handlers
+    gcry_md_hd_t gcry_md_hd;
+    gcry_md_open(&gcry_md_hd, GCRY_MD_CRC32, 0);
+
+    gcry_cipher_hd_t gcry_cipher_hd;
+    gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CFB, 0);
+    gcry_cipher_setkey(gcry_cipher_hd, config.key, 32);  // 32 bytes * 8 = 256 bit key
+
+
+    // calculate crc32 and encrypt data by blocks of FILE_BUF_SIZE
+    uint8_t buf[FILE_BUF_SIZE];
+
+    size_t read_bytes;
+    do {
+        read_bytes = fread(buf, 1, FILE_BUF_SIZE, in_file);
+        gcry_md_write(gcry_md_hd, buf, read_bytes);
+        gcry_cipher_encrypt(gcry_cipher_hd, buf, read_bytes, NULL, 0);
+        fwrite(buf, read_bytes, 1, out_file);
+    } while (read_bytes > 0);
+
+    unsigned char *crc32_res = gcry_md_read(gcry_md_hd, 0);
+
+    fseek(out_file, 12, SEEK_SET);
+    fwrite(crc32_res, 4, 1, out_file);
+
+    uint8_t header[16];
+    fseek(out_file, 0, SEEK_SET);
+    fread(header, 16, 1, out_file);
+    (void)fprintf(stdout, "Successfully encrypted file!\nFile header: %08X | %016lX | %02X%02X%02X%02X",
+                  *((uint32_t *)&header[0]), *((uint64_t *)&header[4]),
+                  *((uint8_t *)&header[12]), *((uint8_t *)&header[13]),
+                  *((uint8_t *)&header[14]), *((uint8_t *)&header[15]));
+
     return 0;
 }
 
