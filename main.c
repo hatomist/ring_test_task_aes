@@ -223,12 +223,13 @@ static int encrypt()
     uint8_t buf[FILE_BUF_SIZE];
 
     size_t read_bytes;
-    do {
-        read_bytes = fread(buf, 1, FILE_BUF_SIZE, in_file);
-        gcry_md_write(gcry_md_hd, buf, read_bytes);
-        gcry_cipher_encrypt(gcry_cipher_hd, buf, read_bytes, NULL, 0);
-        fwrite(buf, read_bytes, 1, out_file);
-    } while (read_bytes > 0);
+    while ((read_bytes = fread(buf, 1, FILE_BUF_SIZE, in_file)) != 0) {
+        size_t padding = 16 - (read_bytes % 16);
+        memset(buf + read_bytes, 0, padding);  // Block size must be multiple of 16 for AES256
+        gcry_md_write(gcry_md_hd, buf, read_bytes + padding);
+        gcry_cipher_encrypt(gcry_cipher_hd, buf, read_bytes + padding, NULL, 0);
+        fwrite(buf, read_bytes + padding, 1, out_file);
+    }
 
     unsigned char *crc32_res = gcry_md_read(gcry_md_hd, 0);
 
