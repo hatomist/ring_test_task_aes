@@ -272,7 +272,7 @@ static int guess()
     fread(&magic, 4, 1, in_file);
     fclose(in_file);
 
-    if (magic == MAGIC_NUMBER)
+    if (magic == htonl(MAGIC_NUMBER))
     {
         (void)fprintf(stdout, "Found magic number - decrypting file...\n");
         return decrypt();
