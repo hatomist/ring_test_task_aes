@@ -24,6 +24,7 @@ static const char* help_string = "Usage: %s [-deh] file key [out]\n"
                                  "\n"
                                  "-d              Decrypt given file \n"
                                  "-e              Encrypt given file (default)\n"
+                                 "-f              Overwrite files\n"
                                  "-h              Show this page\n"
                                  "\n"
                                  "Exit status:\n"
@@ -35,12 +36,13 @@ uint8_t iv[16] = {0x6e, 0x3a, 0x14, 0x15, 0x3f, 0x79, 0xfa, 0xc4, 0x0e, 0x2e, 0x
 
 struct {
     char mode;              // decrypt ('D') or encrypt ('E'), defaults to guess by magic number
+    int overwrite;          // force file overwrite
     char* key_string;       // encryption/decryption key string
     uint8_t key[32];        // encryption/decryption key
     char* in_file_path;     // input file path
     char* out_file_path;    // output file path, defaults to "in_file_path.aes" if in encryption mode and to
                             // "in_file_path" without ".aes" part if possible, otherwise "in_file_path.dec"
-} config = {'g', NULL, {}, NULL, NULL};
+} config = {'g', 0, NULL, {}, NULL, NULL};
 
 
 /** Print help */
@@ -54,6 +56,20 @@ static void help()
  */
 static void cleanup(ret) {
     exit(ret);
+}
+
+/** Check if file exists and user allows to overwrite it
+ * @param path path to file
+ * @return 1 if file could be overwritten/created, else 0
+ * */
+static int check_file_overwrite(char *path)
+{
+    if(access(path, F_OK) != -1)
+    {
+        if (!config.overwrite)
+            return 0;
+    }
+    return 1;
 }
 
 /** Parse operation from cli arguments.
@@ -73,6 +89,9 @@ static int parsearg_op(int opt)
             }
             config.mode = (char)opt;
             return 0;
+        case 'f':
+            config.overwrite = 1;
+            return 0;
         case 'h':
             help();
             cleanup(0);
@@ -89,7 +108,7 @@ static int parseargs(int argc, char *argv[])
 {
     int opt = 0;
     int ret;
-    while ((opt = getopt(argc, argv, "+edh")) != -1)
+    while ((opt = getopt(argc, argv, "+defh")) != -1)
     {
         if (opt == '?') {
             // unknown option, getopt printed an error
@@ -195,14 +214,19 @@ static int decrypt()
     }
 
     // open files and check for errors
-    // TODO: generate temporary file, move tmp to dest if CRC32 matches
     errno = 0;
     FILE *in_file = fopen(config.in_file_path, "rb");
     if (in_file == NULL)
         return file_parse_errno(config.in_file_path);
 
+    if (!check_file_overwrite(config.out_file_path))
+    {
+        (void)fprintf(stderr,"File already exists, aborting...\n");
+        return 1;
+    }
+
     errno = 0;
-    FILE *out_file = fopen(config.out_file_path, "wb+");
+    FILE *out_file = fopen(out_file, "wb+");
     if (out_file == NULL)
         return file_parse_errno(config.out_file_path);
 
@@ -235,7 +259,9 @@ static int decrypt()
     unsigned char *crc32_res = gcry_md_read(gcry_md_hd, 0);
     if (*((uint32_t *)crc32_res) != crc32_given)
     {
-        (void)fprintf(stderr,"Error: CRC32 does not match!\n");  // TODO: remove tmp file
+        (void)fprintf(stderr,"Error: CRC32 does not match!\n");
+        fclose(out_file);
+        remove(config.out_file_path);
         return 1;
     }
 
@@ -263,6 +289,12 @@ static int encrypt()
         strcpy(config.out_file_path + in_file_path_strlen, ".aes");
     }
 
+    if (!check_file_overwrite(config.out_file_path))
+    {
+        (void)fprintf(stderr,"File already exists, aborting...\n");
+        return 1;
+    }
+
     // open files and check for errors
     errno = 0;
     FILE *in_file = fopen(config.in_file_path, "rb");
@@ -270,7 +302,7 @@ static int encrypt()
         return file_parse_errno(config.in_file_path);
 
     errno = 0;
-    FILE *out_file = fopen(config.out_file_path, "wb+");  // TODO: check and ask if file exists
+    FILE *out_file = fopen(config.out_file_path, "wb+");
     if (out_file == NULL)
         return file_parse_errno(config.out_file_path);
 
