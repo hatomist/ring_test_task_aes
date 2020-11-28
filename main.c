@@ -27,7 +27,7 @@ static const char* help_string = "Usage: %s [-deh] file key [out]\n"
                                  "\n"
                                  "Exit status:\n"
                                  " 0  if OK,\n"
-                                 " 1  if critical error.";
+                                 " 1  if critical error.\n";
 
 struct {
     char mode;              // decrypt ('D') or encrypt ('E'), defaults to guess by magic number
