@@ -30,6 +30,9 @@ static const char* help_string = "Usage: %s [-deh] file key [out]\n"
                                  " 0  if OK,\n"
                                  " 1  if critical error.\n";
 
+/** randomly generated initialization vector for aes256-cfb */
+uint8_t iv[16] = {0x6e, 0x3a, 0x14, 0x15, 0x3f, 0x79, 0xfa, 0xc4, 0x0e, 0x2e, 0x72, 0xd6, 0x5d, 0x6c, 0x18, 0x86};
+
 struct {
     char mode;              // decrypt ('D') or encrypt ('E'), defaults to guess by magic number
     char* key_string;       // encryption/decryption key string
@@ -210,6 +213,7 @@ static int decrypt()
     gcry_cipher_hd_t gcry_cipher_hd;
     gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CFB, 0);
     gcry_cipher_setkey(gcry_cipher_hd, config.key, 32);  // 32 bytes * 8 = 256 bit key
+    gcry_cipher_setiv(gcry_cipher_hd, iv, 16);
 
     fseek(in_file, 4, SEEK_SET);
     uint64_t file_size;
@@ -289,6 +293,8 @@ static int encrypt()
     gcry_cipher_hd_t gcry_cipher_hd;
     gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CFB, 0);
     gcry_cipher_setkey(gcry_cipher_hd, config.key, 32);  // 32 bytes * 8 = 256 bit key
+    gcry_cipher_setiv(gcry_cipher_hd, iv, 16);
+
 
 
     // calculate crc32 and encrypt data by blocks of FILE_BUF_SIZE
