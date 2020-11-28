@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdint.h>
+#include <arpa/inet.h>
 
 
 /* Header format
@@ -197,12 +198,12 @@ static int encrypt()
     if (out_file == NULL)
         return file_parse_errno(config.out_file_path);
 
-
-    fwrite(&MAGIC_NUMBER, 4, 1, out_file);
-
+    uint32_t magic = htonl(MAGIC_NUMBER);
+    fwrite(&magic, 4, 1, out_file);
     fseek(in_file, 0, SEEK_END);
     uint64_t file_size = ftell(in_file);
     fseek(in_file, 0, SEEK_SET);
+    file_size = htonll(file_size);
 
     fwrite(&file_size, 8, 1, out_file);
 
@@ -237,10 +238,9 @@ static int encrypt()
     uint8_t header[16];
     fseek(out_file, 0, SEEK_SET);
     fread(header, 16, 1, out_file);
-    (void)fprintf(stdout, "Successfully encrypted file!\nFile header: %08X | %016lX | %02X%02X%02X%02X",
-                  *((uint32_t *)&header[0]), *((uint64_t *)&header[4]),
-                  *((uint8_t *)&header[12]), *((uint8_t *)&header[13]),
-                  *((uint8_t *)&header[14]), *((uint8_t *)&header[15]));
+    (void)fprintf(stdout, "Successfully encrypted file!\nFile header: %08X | %016lX | %08X",
+                  ntohl(*((uint32_t *)&header[0])), ntohll(*((uint64_t *)&header[4])),
+                  ntohl(*((uint32_t *)&header[12])));
 
     return 0;
 }
