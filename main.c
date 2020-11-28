@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <stdint.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#include <libgen.h>
 #include "unistd.h"
 
 
@@ -19,7 +21,7 @@
 
 static char* program_name;
 
-static const char* help_string = "Usage: %s [-deh] file key [out]\n"
+static const char* help_string = "Usage: %s [-deh] file key [out-file/path]\n"
                                  "Encrypt or decrypt file using AES-256 encryption algorithm.\n"
                                  "\n"
                                  "-d              Decrypt given file \n"
@@ -70,6 +72,17 @@ static int check_file_overwrite(char *path)
             return 0;
     }
     return 1;
+}
+
+/** Check if directory is found on given path
+ * @param path path
+ * @return 0 if not directory, else 1
+ */
+static int is_dir(const char *path)
+{
+    struct stat obj_stat;
+    stat(path, &obj_stat);
+    return !!(S_ISDIR(obj_stat.st_mode));
 }
 
 /** Parse operation from cli arguments.
@@ -190,26 +203,48 @@ static int file_parse_errno(char *filename)
     }
 }
 
+/** Get base path to determine output file path
+ * @return base path
+ */
+static char* get_base_path()
+{
+    char *base_path;
+    if (config.out_file_path != NULL && is_dir(config.out_file_path))
+    {
+        // allocate char array for out file dir path, '/' char, filename and '\0' to do the rest with next if-clause
+        base_path = malloc(strlen(config.out_file_path) + 1 + strlen(basename(config.in_file_path)) + 1);
+        strcpy(base_path, config.out_file_path);
+        base_path[strlen(config.out_file_path)] = '/';
+        strcpy(base_path + strlen(config.out_file_path) + 1, basename(config.in_file_path));
+        config.out_file_path = NULL;
+    } else {
+        base_path = config.in_file_path;
+    }
+    return base_path;
+}
+
 /** Decrypt file via given key and save
  * @return error code
  */
 static int decrypt()
 {
     // automatically set out filename if not specified
+    char *base_path = get_base_path();
+
     if (config.out_file_path == NULL)
     {
-        size_t in_file_path_strlen = strlen(config.in_file_path);
+        size_t base_path_strlen = strlen(base_path);
 
         // 5 - len of ".aes" and any other symbol
-        if (in_file_path_strlen > 5 && !(strcmp(config.in_file_path + in_file_path_strlen - 4, ".aes")))
+        if (base_path_strlen > 5 && !(strcmp(base_path + base_path_strlen - 4, ".aes")))
         {
-            config.out_file_path = malloc(in_file_path_strlen);
+            config.out_file_path = malloc(base_path_strlen);
             strcpy(config.out_file_path, config.in_file_path);
-            config.out_file_path[in_file_path_strlen-4] = 0;
+            config.out_file_path[base_path_strlen - 4] = 0;
         } else {
-            config.out_file_path = malloc(in_file_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
+            config.out_file_path = malloc(base_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
             strcpy(config.out_file_path, config.in_file_path);
-            strcpy(config.out_file_path + in_file_path_strlen, ".dec");
+            strcpy(config.out_file_path + base_path_strlen, ".dec");
         }
     }
 
@@ -281,12 +316,14 @@ static int decrypt()
 static int encrypt()
 {
     // automatically set out filename if not specified
+    char *base_path = get_base_path();
+
     if (config.out_file_path == NULL)
     {
-        size_t in_file_path_strlen = strlen(config.in_file_path);
-        config.out_file_path = malloc(in_file_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
-        strcpy(config.out_file_path, config.in_file_path);
-        strcpy(config.out_file_path + in_file_path_strlen, ".aes");
+        size_t base_path_strlen = strlen(base_path);
+        config.out_file_path = malloc(base_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
+        strcpy(config.out_file_path, base_path);
+        strcpy(config.out_file_path + base_path_strlen, ".aes");
     }
 
     if (!check_file_overwrite(config.out_file_path))
