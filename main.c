@@ -226,7 +226,7 @@ static int decrypt()
     }
 
     errno = 0;
-    FILE *out_file = fopen(out_file, "wb+");
+    FILE *out_file = fopen(config.out_file_path, "wb+");
     if (out_file == NULL)
         return file_parse_errno(config.out_file_path);
 
