@@ -64,7 +64,7 @@ static void cleanup(ret) {
  * @param path path to file
  * @return 1 if file could be overwritten/created, else 0
  * */
-static int check_file_overwrite(char *path)
+static int check_file_overwrite(const char *path)
 {
     if(access(path, F_OK) != -1)
     {
@@ -183,7 +183,7 @@ static int parseargs(int argc, char *argv[])
  * @param filename file name
  * @return errno
  */
-static int file_parse_errno(char *filename)
+static int file_parse_errno(const char *filename)
 {
     switch (errno)
     {
