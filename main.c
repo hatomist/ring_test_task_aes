@@ -42,7 +42,7 @@ struct {
     char* key_string;       // encryption/decryption key string
     uint8_t key[32];        // encryption/decryption key
     char* in_file_path;     // input file path
-    char* out_file_path;    // output file path, defaults to "in_file_path.aes" if in encryption mode and to
+    char* out_file_path;    // output file or directory path, defaults to "in_file_path.aes" if in encryption mode and to
                             // "in_file_path" without ".aes" part if possible, otherwise "in_file_path.dec"
 } config = {'g', 0, NULL, {}, NULL, NULL};
 
