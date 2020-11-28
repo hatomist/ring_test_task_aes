@@ -238,8 +238,8 @@ static int decrypt()
         // 5 - len of ".aes" and any other symbol
         if (base_path_strlen > 5 && !(strcmp(base_path + base_path_strlen - 4, ".aes")))
         {
-            config.out_file_path = malloc(base_path_strlen);
-            strcpy(config.out_file_path, config.in_file_path);
+            config.out_file_path = malloc(base_path_strlen + 1);
+            strcpy(config.out_file_path, base_path);
             config.out_file_path[base_path_strlen - 4] = 0;
         } else {
             config.out_file_path = malloc(base_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
@@ -301,8 +301,10 @@ static int decrypt()
     }
 
     fseek(out_file, 0, SEEK_SET);
-    auto res = ftruncate(fileno(out_file), file_size);
+    ftruncate(fileno(out_file), file_size);
 
+    gcry_md_close(gcry_md_hd);
+    gcry_cipher_close(gcry_cipher_hd);
     fclose(in_file);
     fclose(out_file);
 
@@ -382,6 +384,9 @@ static int encrypt()
 
     fseek(out_file, 12, SEEK_SET);
     fwrite(crc32_res, 4, 1, out_file);
+
+    gcry_md_close(gcry_md_hd);
+    gcry_cipher_close(gcry_cipher_hd);
 
     uint8_t header[16];
     fseek(out_file, 0, SEEK_SET);
