@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <arpa/inet.h>
+#include "unistd.h"
 
 
 /* Header format
@@ -35,7 +36,7 @@ struct {
     uint8_t key[32];        // encryption/decryption key
     char* in_file_path;     // input file path
     char* out_file_path;    // output file path, defaults to "in_file_path.aes" if in encryption mode and to
-                            // "in_file_path" without ".aes" part if possible, otherwise "in_file_path.decrypted"
+                            // "in_file_path" without ".aes" part if possible, otherwise "in_file_path.dec"
 } config = {'g', NULL, {}, NULL, NULL};
 
 
@@ -167,13 +168,84 @@ static int file_parse_errno(char *filename)
     }
 }
 
+/** Decrypt file via given key and save
+ * @return error code
+ */
 static int decrypt()
 {
+    // automatically set out filename if not specified
+    if (config.out_file_path == NULL)
+    {
+        size_t in_file_path_strlen = strlen(config.in_file_path);
 
+        // 5 - len of ".aes" and any other symbol
+        if (in_file_path_strlen > 5 && !(strcmp(config.in_file_path + in_file_path_strlen - 4, ".aes")))
+        {
+            config.out_file_path = malloc(in_file_path_strlen);
+            strcpy(config.out_file_path, config.in_file_path);
+            config.out_file_path[in_file_path_strlen-4] = 0;
+        } else {
+            config.out_file_path = malloc(in_file_path_strlen + 4 + 1);  // 4 - len of ".aes", 1 - for \0
+            strcpy(config.out_file_path, config.in_file_path);
+            strcpy(config.out_file_path + in_file_path_strlen, ".dec");
+        }
+    }
+
+    // open files and check for errors
+    // TODO: generate temporary file, move tmp to dest if CRC32 matches
+    errno = 0;
+    FILE *in_file = fopen(config.in_file_path, "rb");
+    if (in_file == NULL)
+        return file_parse_errno(config.in_file_path);
+
+    errno = 0;
+    FILE *out_file = fopen(config.out_file_path, "wb+");
+    if (out_file == NULL)
+        return file_parse_errno(config.out_file_path);
+
+    // initialize crc32 and aes256 libgcrypt handlers
+    gcry_md_hd_t gcry_md_hd;
+    gcry_md_open(&gcry_md_hd, GCRY_MD_CRC32, 0);
+
+    gcry_cipher_hd_t gcry_cipher_hd;
+    gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CFB, 0);
+    gcry_cipher_setkey(gcry_cipher_hd, config.key, 32);  // 32 bytes * 8 = 256 bit key
+
+    fseek(in_file, 4, SEEK_SET);
+    uint64_t file_size;
+    fread(&file_size, 8, 1, in_file);
+    file_size = ntohll(file_size);
+    uint32_t crc32_given;
+    fread(&crc32_given, 4, 1, in_file);
+
+    uint8_t buf[FILE_BUF_SIZE];
+
+    size_t read_bytes;
+    do {
+        read_bytes = fread(buf, 1, FILE_BUF_SIZE, in_file);
+        gcry_cipher_decrypt(gcry_cipher_hd, buf, read_bytes, NULL, 0);
+        gcry_md_write(gcry_md_hd, buf, read_bytes);
+        fwrite(buf, read_bytes, 1, out_file);
+    } while (read_bytes > 0);
+
+    unsigned char *crc32_res = gcry_md_read(gcry_md_hd, 0);
+    if (*((uint32_t *)crc32_res) != crc32_given)
+    {
+        (void)fprintf(stderr,"Error: CRC32 does not match!\n");  // TODO: remove tmp file
+        return 1;
+    }
+
+    fseek(out_file, 0, SEEK_SET);
+    auto res = ftruncate(fileno(out_file), file_size);
+
+    fclose(in_file);
+    fclose(out_file);
+
+    (void)fprintf(stdout,"Successfully decrypted file\n");
     return 0;
 }
 
-/** Encrypt file via given password and save
+/** Encrypt file via given key and save
  * @return error code
  */
 static int encrypt()
